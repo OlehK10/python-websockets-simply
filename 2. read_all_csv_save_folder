@@ -1,0 +1,54 @@
+"""
+!
+run first script 1. websockets_wss_save_csv
+to form a pool of csv files
+
+2 script, reads all files from the root directory
+and generates a common DataFrame for further analysis (the common DataFrame is saved to a file)
+"""
+from datetime import datetime
+import pandas as pd
+import os
+import glob
+from pandas import concat
+from pyspark.sql import DataFrame
+
+# use glob to get all the csv files
+# in the folder
+frames = []
+class read_csv_foledr():
+    def __init__(self, environment_from_read, environment_to_save):
+        self.environment = environment_from_read
+        self.environment_to_save = environment_to_save
+
+
+    def save_df_s(self, df: DataFrame, event_time_to_load_if):
+        # result_df = concat(df)
+        result_df = concat(df, axis=0, ignore_index=True)
+
+        os.makedirs(f"{self.environment_to_save}", exist_ok=True)
+        pach_load = f"{self.environment_to_save}/bc{event_time_to_load_if}.csv"
+        result_df.to_csv(path_or_buf=pach_load, sep=';')
+        frames.clear()
+
+    def run(self):
+        now = datetime.now()  # current date and time
+        path = os.getcwd()
+        csv_files = glob.glob(os.path.join(f"{path}/{self.environment}", "*.csv"))
+
+        # loop over the list of csv files
+        for f in csv_files:
+            # read the csv file
+            df = pd.read_csv(f, sep=';')
+            frames.append(df)
+
+
+        print("--save all_--")
+        event_time_to_load_if = now.strftime("%m%d%Y_%H:%M:%S")
+        read_csv_foledr.save_df_s(self,frames, event_time_to_load_if)
+# print(result_df)
+
+if __name__ == "__main__":
+    r =read_csv_foledr(environment_from_read="resultVTest",
+                       environment_to_save="resultVAll")
+    r.run()
