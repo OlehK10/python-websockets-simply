@@ -1,0 +1,71 @@
+"""
+1 script, reads json from wss for a certain time (100 seconds for the test)
+and saves the data to a separate file every minute
+"""
+
+import websockets
+import asyncio
+import json
+import time
+import pandas as pd
+from pandas import json_normalize
+from pandas import concat
+from pathlib import Path
+import os
+from pyspark.sql import DataFrame
+
+
+frames =[]
+
+async def main():
+    cn=0
+    url = "wss://stream.binance.com:9443/stream?streams=btcusdt@miniTicker"
+
+    def save_df_s(df: DataFrame, event_time_to_load_if):
+        result_df = concat(df)
+        os.makedirs('resultVTest', exist_ok=True)
+        pach_load = f"resultVTest/bc{event_time_to_load_if}.csv"
+        result_df.to_csv(path_or_buf=pach_load, sep=';')
+        frames.clear()
+
+
+
+    async with websockets.connect(url) as client:
+        event_time_to_load_if = 0
+        flag =0
+        while cn<100:
+            data  = json.loads(await client.recv())['data']
+            cn+=1
+            df = json_normalize(data)
+            # ----colum
+            event_time = time.localtime(data['E'] // 1000)
+            # generating date
+            event_time_m = f"{event_time.tm_hour}:{event_time.tm_min}:{event_time.tm_sec}"
+            event_time_to_load = int(f"{event_time.tm_hour}{event_time.tm_min}") # algorithm for generating a new csv file
+            df['date_normal'] = event_time_m
+            df['event_time_to_load'] = event_time_to_load
+            # ----colum
+
+            print(f"event_time_to_load = {event_time_to_load} = {event_time_to_load_if}")
+            if event_time_to_load == event_time_to_load_if or flag == 0:
+                event_time_to_load_if = event_time_to_load
+                frames.append(df)
+                flag=1
+            else:
+
+                save_df_s(frames, event_time_to_load_if)
+
+                event_time_to_load_if = event_time_to_load
+                frames.append(df)
+                # result_df = concat(frames)
+                #--load
+
+
+            # --if
+        save_df_s(frames, event_time_to_load_if)
+
+        print("Done")
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
